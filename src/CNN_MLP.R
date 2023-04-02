@@ -13,8 +13,16 @@
 #'Para análise e explicação das resultados do modelo:
 #'@seealso https://blogs.rstudio.com/ai/posts/2018-01-11-keras-customer-churn/
 ################################################################################
-setwd("./")
 
+#define o diretório corrente com base no arquivo que está sendo executado...
+if (Sys.getenv("RSTUDIO") == 1) {
+  #install.packages("rstudioapi")
+  library(rstudioapi)
+  setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+} else {
+  setwd(getSrcDirectory(function(){})[1])  
+}
+cat ("Current path: ", getwd())
 
 # Instalação do TensorFlow
 pkg <- "tensorflow"
@@ -38,17 +46,17 @@ library(pkg, character.only=TRUE)
 pkg <- "libcoin"
 if (!requireNamespace(pkg, quietly = TRUE)) {
   download.file(
-    "https://cran.r-project.org/src/contrib/libcoin_1.0-7.tar.gz", 
+    "https://cran.r-project.org/src/contrib/libcoin_1.0-9.tar.gz", 
     pkg
   )
   install.packages(pkg, repos = NULL, type = "source")
 }
 
 #Instalação específica do ggrepel
-pkg <- "ggrepel"
-if (!requireNamespace(pkg, quietly = TRUE)) {
-  remotes::install_github("slowkow/ggrepel")
-}
+#pkg <- "ggrepel"
+#if (!requireNamespace(pkg, quietly = TRUE)) {
+#  remotes::install_github("slowkow/ggrepel")
+#}
 #Instalação específica do ggrepel
 pkg <- "fastshap"
 if (!requireNamespace(pkg, quietly = TRUE)) {
@@ -62,7 +70,7 @@ if (!requireNamespace(pkg, quietly = TRUE)) {
 pkgs <- c("BiocManager", "corrplot", "corrr", "dplyr", 
           "e1071", "forcats", "ggplot2", "heatmaply", 
           "InformationValue", "lime", "magick", 
-          "magrittr", "shapper", "pryr", "tidyverse", "tfruns", "tfestimators", "yardstick")
+          "magrittr", "shapper", "pryr", "tidyverse", "tfruns", "tfestimators", "yardstick", "rstudioapi", "libcoin",  "ggrepel")
 
 # Install packages not yet installed
 installed_packages <- pkgs %in% rownames(installed.packages())
@@ -142,15 +150,15 @@ INVERTER_EXPLAIN_PROBS <- TRUE #5
 #'Exibir representação gráfica (imagem) dos clientes
 DISPLAY_CLIENTS <- FALSE
 #PLOTAR
-PLOTAR <- TRUE
+PLOTAR <- FALSE
 PLOTAR_CORR_PERIDO <- FALSE
 PLOTAR_CORR_CARA <- FALSE
 PLOTAR_CORR_COLS <- FALSE
 PLOTAR_ROCR <- PLOTAR
 PLOTAR_INFO <- PLOTAR
-PLOTAR_LIME <- FALSE
+PLOTAR_LIME <- TRUE
 
-PATH_PLOTS <<- paste0("./", if (tfruns::is_run_active()) paste0(tfruns::run_dir(), "/plots/", sep="") else "figures/", sep="")
+PATH_PLOTS <<- paste0("./", if (tfruns::is_run_active()) paste0(tfruns::run_dir(), "../plots/", sep="") else "../figures/", sep="")
 cat("tfruns_is_active? ", tfruns::is_run_active(), "\n")
 cat("tfruns_run_dir? ", tfruns::run_dir(), "\n")
 cat ("PATHS: ", PATH_PLOTS, "\n");
@@ -223,7 +231,7 @@ if (!exists("CNN_MLP_LOADED") || (exists("CNN_MLP_NEED_RELOAD") && CNN_MLP_NEED_
   #'marca inicio carga e preparação dos dados
   loadPrepareIniTime <<- Sys.time()
   
-  csArqs <<- loadFiles("./data/", "cli_*")
+  csArqs <<- loadFiles("./../data/", "cli_*")
   totalArqs <- length(csArqs$nomes)
   
   #'Indices em ordem aletória
@@ -352,16 +360,20 @@ history$params$epochs <- es$stopped_epoch + 1
   #------------------------------------------------------------------------
   ds.train_eval <<- model_cnn %>% evaluate(ds.train,ds.train_lab) 
   #-----Classification
-  ds.train_pclass <- model_cnn%>% predict_classes(ds.train)
-  ds.train_proba <<- model_cnn %>% predict_proba(ds.train)
+  #ds.train_pclass <- model_cnn %>% predict(ds.train) %>% `>`(0.5) %>% k_cast("int32")
+  ds.train_pclass <- model_cnn %>% predict(ds.train) %>% k_argmax()
+  #ds.train_pclass <- model_cnn%>% predict_classes(ds.train)
+  ds.train_proba <<- model_cnn %>% predict(ds.train)
   ds.train_rmse <<- mean(sqrt((ds.train_pclass - ds.train_y) ** 2))
   #----Results
   ds.train_xtab <<- table(Predicted = ds.train_pclass, Actual = ds.train_y) 
   
   #test
   ds.test_eval <<- model_cnn %>% evaluate(ds.test, ds.test_lab) #-----Evaluation of test set
-  ds.test_pclass <<- model_cnn  %>% predict_classes(ds.test)   #-----Classification
-  ds.test_proba <<- model_cnn %>% predict_proba(ds.test)
+  #ds.test_pclass <<- model_cnn  %>% predict_classes(ds.test)   #-----Classification
+  ds.test_pclass <- model_cnn %>% predict(ds.test) %>% k_argmax()
+  #ds.test_proba <<- model_cnn %>% predict_proba(ds.test)
+  ds.test_proba <<- model_cnn %>% predict(ds.test)
   ds.test_rmse <<- mean(sqrt((ds.test_pclass - ds.test_y) ** 2))
   ds.test_xtab <<- table(Predicted = ds.test_pclass, Actual = ds.test_y) #-----Results
   # predict probabilities for test set
