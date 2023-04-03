@@ -48,13 +48,13 @@ mostrarResultados <- function (geral=TRUE, yard=TRUE, rocr=TRUE, info=TRUE) {
   cat("\t auc: ", ds.test_auc, "\n")
   
   cat("\nCALC_SCORE:\n")
-  cat("\t accuracy: ", accuracy_score(ds.test_y, ds.test_pclass), "\n")
-  cat("\t rec: ", recall_score(ds.test_y, ds.test_pclass), "\n")
-  cat("\t f1: ", f1_score(ds.test_y, ds.test_pclass), "\n")
+  vpclass <- matrix(ds.test_pclass)[, 1];
+  cat("\t accuracy: ", accuracy_score(ds.test_y, vpclass), "\n")
+  cat("\t rec: ", recall_score(ds.test_y, vpclass), "\n")
+  cat("\t f1: ", f1_score(ds.test_y, vpclass), "\n")
   
   cat ("\ncaret analisys para Treino\n")
   print(caret.confmat_train)
   cat ("\ncaret analisys para Teste\n")
   print(caret.confmat_test)
-  
 }

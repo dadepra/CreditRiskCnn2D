@@ -1,4 +1,14 @@
 #Carrega biblioteca do TensorFlow Runs
+#define o diretório corrente com base no arquivo que está sendo executado...
+if (Sys.getenv("RSTUDIO") == 1) {
+  #install.packages("rstudioapi")
+  library(rstudioapi)
+  setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+} else {
+  setwd(getSrcDirectory(function(){})[1])  
+}
+
+
 pkg <- "tensorflow"
 if (!requireNamespace(pkg, quietly = TRUE)) {
   install.packages(pkg)
@@ -23,8 +33,7 @@ if (!requireNamespace(pkg, quietly = TRUE)) {
 }
 library(pkg, character.only = TRUE)
 
-#Define o diretório de trabalho
-setwd("./")
+#Define arquivo com o modelo 
 arqScript <- "./CNN_MLP.R"
 #tfruns::training_run(arqScript, echo = FALSE)
 

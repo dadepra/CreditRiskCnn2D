@@ -23,14 +23,21 @@ if (!requireNamespace(pkg, quietly = TRUE)) {
 }
 library(pkg, character.only = TRUE)
 
+if (Sys.getenv("RSTUDIO") == 1) {
+  #install.packages("rstudioapi")
+  library(rstudioapi)
+  setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+} else {
+  setwd(getSrcDirectory(function(){})[1])  
+}
+cat ("Current path: ", getwd())
+
 #mostrarResultados
 import::from("./CNN_MLP_SHOW_PERF.R", mostrarResultados)
 
 #
-setwd("./")
-#
 #runs.best <- ls_runs(order = metric_val_accuracy, decreasing=T)$run_dir
-local <- "./runs/2021-03-16T14-30-34Z"
+local <- "./../runs/2021-03-16T14-30-34Z"
 modelo <- file.path(local, list.files(local, pattern = "*.tf"))
 model_cnn <- load_model_tf(modelo)
 summary(model_cnn)

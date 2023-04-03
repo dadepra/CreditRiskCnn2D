@@ -39,38 +39,19 @@ if (!requireNamespace(pkg, quietly = TRUE)) {
   install.packages(pkg)
   install_keras()
 }  
+if (!require("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
 #Funções usadas: keras_model_sequential, layer_conv_2d, layer_max_pooling_2d, layer_dropout, layer_flatten, layer_dense
 library(pkg, character.only=TRUE)
 
-#Instalação específica do libcoin
-pkg <- "libcoin"
-if (!requireNamespace(pkg, quietly = TRUE)) {
-  download.file(
-    "https://cran.r-project.org/src/contrib/libcoin_1.0-9.tar.gz", 
-    pkg
-  )
-  install.packages(pkg, repos = NULL, type = "source")
-}
-
-#Instalação específica do ggrepel
-#pkg <- "ggrepel"
-#if (!requireNamespace(pkg, quietly = TRUE)) {
-#  remotes::install_github("slowkow/ggrepel")
-#}
-#Instalação específica do ggrepel
-pkg <- "fastshap"
-if (!requireNamespace(pkg, quietly = TRUE)) {
-  remotes::install_github("ModelOriented/shapper", force = T)
-  reticulate::py_install(c("numpy", "pandas"))
-  install.packages("fastshap")
-  remotes::install_github("bgreenwell/fastshap")
-}
-
 #Demais pacotes com instalação padrão, mas sem fazer load da biblioteca
 pkgs <- c("BiocManager", "corrplot", "corrr", "dplyr", 
-          "e1071", "forcats", "ggplot2", "heatmaply", 
-          "InformationValue", "lime", "magick", 
-          "magrittr", "shapper", "pryr", "tidyverse", "tfruns", "tfestimators", "yardstick", "rstudioapi", "libcoin",  "ggrepel")
+          "e1071", "forcats", "ggplot2", "heatmaply", "np",
+          "lime", "magick", "magrittr", "shapper", "pryr", 
+          "tidyverse", "tfruns", "tfestimators", "yardstick", 
+          "rstudioapi", "libcoin",  "ggrepel", "shapr")
 
 # Install packages not yet installed
 installed_packages <- pkgs %in% rownames(installed.packages())
@@ -93,14 +74,6 @@ library(pROC)
 
 library(caret)
 
-#InformationValue::specificity
-#InformationValue::sensitivity
-#InformationValue::precision
-library(InformationValue)
-
-#EBImage::display
-library(EBImage)
-
 #função %<>% 
 library(magrittr)
 
@@ -111,7 +84,7 @@ library(tfruns)
 #corrplot::corrplot
 #library(corrplot)
 
-#cat ("Memory começo: ", pryr::mem_used())
+cat ("Memory começo: ", pryr::mem_used())
 
 #accuracy_score
 #f1_score
@@ -124,7 +97,7 @@ import::from("./CNN_MLP_SHOW_PERF.R", mostrarResultados)
 #plotarResultados
 import::from("./CNN_MLP_PLOTAR.R", plotarResultados, draw_confusion_matrix, plotarCorrPeriodo, plotarCorrCaract, plotarCorrCols, plotarLime)
 
-#cat ("Memory depois imports: ", pryr::mem_used())
+cat ("Memory depois imports: ", pryr::mem_used())
 
 ################################################################################
 #'Declaração de constantes
@@ -148,14 +121,14 @@ LIMITE_NORM <- 255
 INVERTER_EXPLAIN_PROBS <- TRUE #5
 #
 #'Exibir representação gráfica (imagem) dos clientes
-DISPLAY_CLIENTS <- FALSE
+DISPLAY_CLIENTS <- TRUE
 #PLOTAR
-PLOTAR <- FALSE
-PLOTAR_CORR_PERIDO <- FALSE
-PLOTAR_CORR_CARA <- FALSE
-PLOTAR_CORR_COLS <- FALSE
+PLOTAR <- TRUE
+PLOTAR_CORR_PERIDO <- TRUE
+PLOTAR_CORR_CARA <- TRUE
+PLOTAR_CORR_COLS <- TRUE
 PLOTAR_ROCR <- PLOTAR
-PLOTAR_INFO <- PLOTAR
+PLOTAR_INFO <- FALSE
 PLOTAR_LIME <- TRUE
 
 PATH_PLOTS <<- paste0("./", if (tfruns::is_run_active()) paste0(tfruns::run_dir(), "../plots/", sep="") else "../figures/", sep="")
@@ -173,7 +146,7 @@ loadFiles <- function (local, filtro, expansao=1) {
   arq.names <- list.files(path=local, pattern=glob2rx(filtro), full.names = F)
   qtd_arqs <- length(arq.names)
   retorno <- list(dados=list(NULL), nomes=c(NA, length(qtd_arqs)), y=c(rep(0), length(qtd_arqs)))
-                  
+  
   qtdBons <- qtdRuins <- 0
   for (i in 1:qtd_arqs) {
     nome <- paste0(local, arq.names[i]);
@@ -200,24 +173,29 @@ loadFiles <- function (local, filtro, expansao=1) {
 prepareData <- function (pool, indices) {
   #'Cria matrix par ao conjunto de dados
   conjunto <- array(0, dim=c(length(indices), PERIODOS, FEATURES, 1))
-
+  
   #'Popula conjuntos de dados e respostas
   for (i in 1:length(indices)) {
     for (j in 1:PERIODOS) {
       for (k in 1:FEATURES) {
         #'Normaliza o conjunto de dados de acordo com o pesos e o limite de normalização
-        conjunto[i, j, k, 1] <- ((as.numeric(pool[[indices[i]]][j, k]) * LIMITE_NORM )/ PESOS[k]) / LIMITE_NORM
+        v1 <- pool[[indices[i]]][j, k]
+        v2 <- v1 * LIMITE_NORM
+        v3 <- v2 / PESOS[k]
+        #v4 <- v3 / LIMITE_NORM
+        conjunto[i, j, k, 1] <- v3
       }
     }
   }
-  normalize(conjunto)
+  #normalize(conjunto)
+  conjunto
 }
 
 ################################################################################
 
 #'marca inicio Script
 scriptIniTime <- Sys.time()
-#cat ("Memory antes carregar arquivos: ", pryr::mem_used())
+cat ("Memory antes carregar arquivos: ", pryr::mem_used())
 
 #'carregar arquivos com crédito score dos clientes
 #'WARN: observar que dentro do IF as variávies são atribuídas com <<- ao invés de <-
@@ -227,7 +205,7 @@ scriptIniTime <- Sys.time()
 #'      otimizando o tempo de execução das simulações
 if (!exists("CNN_MLP_LOADED") || (exists("CNN_MLP_NEED_RELOAD") && CNN_MLP_NEED_RELOAD == TRUE)) {
   CNN_MLP_LOADED <<- TRUE
-
+  
   #'marca inicio carga e preparação dos dados
   loadPrepareIniTime <<- Sys.time()
   
@@ -251,26 +229,26 @@ if (!exists("CNN_MLP_LOADED") || (exists("CNN_MLP_NEED_RELOAD") && CNN_MLP_NEED_
   ds.test_nomes <<- csArqs$nomes[ds.test_idx]
   
   #classes
-  ds.train_lab <<- to_categorical(ds.train_y) #Catagorical vector for training 
-  ds.test_lab <<- to_categorical(ds.test_y)#Catagorical vector for test classes
+  #ds.train_lab <<- to_categorical(ds.train_y) #Catagorical vector for training 
+  #ds.test_lab <<- to_categorical(ds.test_y)#Catagorical vector for test classes
   
   #marca Fim
   loadPrepareFimTime <<- Sys.time()
 }
-#cat ("Memory depois de carregar arquivos: ", pryr::mem_used())
+cat ("Memory depois de carregar arquivos: ", pryr::mem_used())
 
 # Hyperparameter flags ---------------------------------------------------
 FLAGS <- flags(
-    flag_numeric("dropout1", 0.25, 'Parâmetro dropout após camadas conv2d'),
-    flag_numeric("dropout2", 0.45, 'Parâmetro dropout após camadas ocultas '),
-    flag_integer("dense1Units", 196, 'Número de neurônios na primeira camada oculta'),
-    flag_integer("dense2Units", 196, 'Número de neurônios na segunda camada oculta'),
-    flag_numeric("validSplit", .21, 'Percentual de amostras utilizadas para validação'),
-    flag_integer("epocas", 300, 'Número de épocas para treino'),
-    flag_integer("verbose", 1, "Define se deve exibir gráfico de evolução do treino"),
-    flag_numeric("kernel_reg1", 0.01, "Regularizador de kernel do tipo l2 - 1 comada conv2d"),
-    flag_numeric("kernel_reg2", 0.02, "Regularizador de kernel do tipo l2 - 2 comada conv2d")
-  )
+  flag_numeric("dropout1", 0.25, 'Parâmetro dropout após camadas conv2d'),
+  flag_numeric("dropout2", 0.45, 'Parâmetro dropout após camadas ocultas '),
+  flag_integer("dense1Units", 196, 'Número de neurônios na primeira camada oculta'),
+  flag_integer("dense2Units", 196, 'Número de neurônios na segunda camada oculta'),
+  flag_numeric("validSplit", .21, 'Percentual de amostras utilizadas para validação'),
+  flag_integer("epocas", 300, 'Número de épocas para treino'),
+  flag_integer("verbose", 1, "Define se deve exibir gráfico de evolução do treino"),
+  flag_numeric("kernel_reg1", 0.01, "Regularizador de kernel do tipo l2 - 1 comada conv2d"),
+  flag_numeric("kernel_reg2", 0.02, "Regularizador de kernel do tipo l2 - 2 comada conv2d")
+)
 
 # Model Building
 model_cnn <- keras_model_sequential() #-Keras Model composed of a 
@@ -304,24 +282,24 @@ model_cnn %>%                  #---------Initiate and connect to #--------------
               kernel_regularizer = keras::regularizer_l2(FLAGS$kernel_reg2),
               kernel_initializer='random_normal',
               activation = 'relu'
-              )%>% #-----Hidden layer
+  )%>% #-----Hidden layer
   #-----------------------------------------------------------------#
   layer_dense(units = FLAGS$dense2Units, 
               #kernel_regularizer = keras::regularizer_l1(0.01),
               kernel_initializer='random_normal',
-              activation = 'sigmoid')%>% #-----Hidden layer
+              activation = 'softmax')%>% #-----Hidden layer
   #-----------------------------------------------------------------#
   layer_dropout(rate = FLAGS$dropout2)%>%     #-------------------Drop-out layer
   #-----------------------------------------------------------------#
-  layer_dense(units = 2, activation = "softmax")%>% #-----Final Layer
+  layer_dense(units = 1, activation = "sigmoid")%>% #-----Final Layer
   #-----------------------------------------------------------------#
   
-  compile(loss = 'categorical_crossentropy',
+  compile(loss = 'binary_crossentropy',
           optimizer = optimizer_adam(), #optimizer_adadelta(), #optimizer_adam(), #sgd,
           metrics = c('accuracy')
-          )   # Compiling the architecture
+  )   # Compiling the architecture
 #
-#cat ("Memory depois compilado: ", pryr::mem_used())
+cat ("Memory depois compilado: ", pryr::mem_used())
 
 #---------------------------------fit model----------------------------
 
@@ -341,7 +319,7 @@ lr <- callback_reduce_lr_on_plateau(monitor = "val_accuracy", factor = 0.1)
 trainIniTime <- Sys.time()
 history <- model_cnn %>%
   fit(ds.train, 
-      ds.train_lab, 
+      ds.train_y, 
       callbacks = c(es, lr),
       epochs = FLAGS$epocas,
       validation_split = FLAGS$validSplit,
@@ -352,48 +330,45 @@ trainFimTime <- Sys.time()
 #se o treinamento foi interrompido pela função early_stopping então precisa ajustar o número de éopoca no history
 history$params$epochs <- es$stopped_epoch + 1
 
-#cat ("Memory depois treino: ", pryr::mem_used())
+cat ("Memory depois treino: ", pryr::mem_used())
 
 #Limpar a saída de console
 #cat("\014")
 
-  #------------------------------------------------------------------------
-  ds.train_eval <<- model_cnn %>% evaluate(ds.train,ds.train_lab) 
-  #-----Classification
-  #ds.train_pclass <- model_cnn %>% predict(ds.train) %>% `>`(0.5) %>% k_cast("int32")
-  ds.train_pclass <- model_cnn %>% predict(ds.train) %>% k_argmax()
-  #ds.train_pclass <- model_cnn%>% predict_classes(ds.train)
-  ds.train_proba <<- model_cnn %>% predict(ds.train)
-  ds.train_rmse <<- mean(sqrt((ds.train_pclass - ds.train_y) ** 2))
-  #----Results
-  ds.train_xtab <<- table(Predicted = ds.train_pclass, Actual = ds.train_y) 
-  
-  #test
-  ds.test_eval <<- model_cnn %>% evaluate(ds.test, ds.test_lab) #-----Evaluation of test set
-  #ds.test_pclass <<- model_cnn  %>% predict_classes(ds.test)   #-----Classification
-  ds.test_pclass <- model_cnn %>% predict(ds.test) %>% k_argmax()
-  #ds.test_proba <<- model_cnn %>% predict_proba(ds.test)
-  ds.test_proba <<- model_cnn %>% predict(ds.test)
-  ds.test_rmse <<- mean(sqrt((ds.test_pclass - ds.test_y) ** 2))
-  ds.test_xtab <<- table(Predicted = ds.test_pclass, Actual = ds.test_y) #-----Results
-  # predict probabilities for test set
-  ds.test_yprobs <<- model_cnn %>% predict(ds.test, verbose=0)
-  # reduce to 1d array
-  ds.test_yprobs <<- ds.test_yprobs[, 1]
-  
-  # Ajusta nomes
-  rownames(ds.train_xtab) <- rownames(ds.test_xtab) <- colnames(ds.train_xtab) <- colnames(ds.test_xtab) <- c("Ruins", "Bons")
-  
-  #Pacote CARET
-  caret.confmat_train <- caret::confusionMatrix(ds.train_xtab, positive = "Bons")
-  caret.confmat_test <- caret::confusionMatrix(ds.test_xtab, positive = "Bons")
+#------------------------------------------------------------------------
+ds.train_eval <<- model_cnn %>% evaluate(ds.train, ds.train_y) 
+#-----Classification
+ds.train_pclass <- model_cnn %>% predict(ds.train) %>% `>`(0.5) %>% k_cast("int32")
+ds.train_proba <<- model_cnn %>% predict(ds.train)
+ds.train_rmse <<- mean(sqrt((matrix(ds.train_pclass) - ds.train_y) ** 2))
+#----Results
+ds.train_xtab <<- table(Predicted = matrix(ds.train_pclass), Actual = ds.train_y) 
 
-  if ((!exists("CNN_MLP_SHOW_PLOTS") || CNN_MLP_SHOW_PLOTS == TRUE)) {
-    
+#test
+
+ds.test_eval <<- model_cnn %>% evaluate(ds.test, ds.test_y) #-----Evaluation of test set
+ds.test_pclass <- model_cnn %>% predict(ds.test) %>% `>`(0.5) %>% k_cast("int32")
+ds.test_proba <<- model_cnn %>% predict(ds.test)
+ds.test_rmse <<- mean(sqrt((matrix(ds.test_pclass) - ds.test_y) ** 2))
+ds.test_xtab <<- table(Predicted = matrix(ds.test_pclass), Actual = ds.test_y) #-----Results
+# predict probabilities for test set
+ds.test_yprobs <<- model_cnn %>% predict(ds.test, verbose=0)
+# reduce to 1d array
+ds.test_yprobs <<- ds.test_yprobs[, 1]
+
+# Ajusta nomes
+rownames(ds.train_xtab) <- rownames(ds.test_xtab) <- colnames(ds.train_xtab) <- colnames(ds.test_xtab) <- c("Ruins", "Bons")
+
+#Pacote CARET
+caret.confmat_train <- caret::confusionMatrix(ds.train_xtab, positive = "Bons")
+caret.confmat_test <- caret::confusionMatrix(ds.test_xtab, positive = "Bons")
+
+if ((!exists("CNN_MLP_SHOW_PLOTS") || CNN_MLP_SHOW_PLOTS == TRUE)) {
+  
   #yardstick performance analysis
   yard.keras_tbl <- tibble::tibble(
     truth      = as.factor(ds.test_y) %>% forcats::fct_recode(yes = "1", no = "0"),
-    estimate   = as.factor(ds.test_pclass) %>% forcats::fct_recode(yes = "1", no = "0"),
+    estimate   = as.factor(matrix(ds.test_pclass)[, 1]) %>% forcats::fct_recode(yes = "1", no = "0"),
     class_prob = ds.test_proba
   )
   options(yardstick.event_first = FALSE)
@@ -410,7 +385,7 @@ history$params$epochs <- es$stopped_epoch + 1
   )
   
   #Metrics com pacote ROCR
-  rocr.pred <- ROCR::prediction(ds.test_proba, ds.test_lab)
+  rocr.pred <- ROCR::prediction(ds.test_proba, ds.test_y)
   rocr.acc <- ROCR::performance(rocr.pred, "acc")
   rocr.prec <- ROCR::performance(rocr.pred, "prec")
   rocr.rec <- ROCR::performance(rocr.pred, "rec")
@@ -426,35 +401,37 @@ history$params$epochs <- es$stopped_epoch + 1
   rocr.ks <- max(attr(rocr.tpr_fpr, "y.values")[[1]] - (attr(rocr.tpr_fpr, "x.values")[[1]]))
   
   #InformationValue metrics
-  infov.prec <- InformationValue::precision(ds.test_y, ds.test_pclass)
-  infov.sens <- InformationValue::sensitivity(ds.test_y, ds.test_pclass)
-  infov.spec <- InformationValue::specificity(ds.test_y, ds.test_pclass)
-  infov.kap <- InformationValue::kappaCohen(ds.test_y, ds.test_pclass)
-  infov.ks <- InformationValue::ks_stat(ds.test_y, ds.test_pclass)
-  infov.auc <- InformationValue::AUROC(ds.test_y, ds.test_pclass)
+  if (PLOTAR_INFO) {
+    infov.prec <- InformationValue::precision(ds.test_y, ds.test_pclass)
+    infov.sens <- InformationValue::sensitivity(ds.test_y, ds.test_pclass)
+    infov.spec <- InformationValue::specificity(ds.test_y, ds.test_pclass)
+    infov.kap <- InformationValue::kappaCohen(ds.test_y, ds.test_pclass)
+    infov.ks <- InformationValue::ks_stat(ds.test_y, ds.test_pclass)
+    infov.auc <- InformationValue::AUROC(ds.test_y, ds.test_pclass)
+  }
   
   #ROC
   ds.test_auc <- pROC::auc(ds.test_y, ds.test_yprobs)
-
-################################################################################
-#Saída de texto 
-################################################################################
-#Limpar console
-#cat("\014")
-
-#Plotar gráficos de resultado apenas se não estiver num processo de tunnig
+  
+  ################################################################################
+  #Saída de texto 
+  ################################################################################
+  #Limpar console
+  #cat("\014")
+  
+  #Plotar gráficos de resultado apenas se não estiver num processo de tunnig
   plotarResultados(
     494, #sample(dim(ds.test)[1] - 20, 1), 
     PLOTAR_ROCR, PLOTAR_INFO, PLOTAR_LIME, PLOTAR_CORR_PERIDO, PLOTAR_CORR_CARA, PLOTAR_CORR_COLS, DISPLAY_CLIENTS)
-  draw_confusion_matrix(caret.confmat_train, "Matriz de resultado do Treino", "Performance do Teste")
+  draw_confusion_matrix(caret.confmat_train, "Matriz de resultado do Treino", "Performance do Treino")
   draw_confusion_matrix(caret.confmat_test, "Matriz de resultado do Teste", "Performance do Teste")
-  mostrarResultados()
-
+  mostrarResultados(rocr = PLOTAR_ROCR, info = PLOTAR_INFO)
+  
   if (exists("FLAGS")) {
     print(FLAGS)
   }
-
-#
+  
+  #
   cat("Tempo de carga e preparação (", format(loadPrepareFimTime,"%d/%m/%Y %H:%M:%S"), " - ", format(loadPrepareIniTime,"%d/%m/%Y %H:%M:%S"), "): ", (loadPrepareFimTime - loadPrepareIniTime), '\n')
   
 }

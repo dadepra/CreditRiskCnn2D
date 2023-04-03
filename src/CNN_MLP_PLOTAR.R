@@ -140,7 +140,7 @@ plotarLime <- function (df_train, df_test, cli_good, cli_bad) {
   print(summary(explainer))
   
   df_test_explain <- df_test[c(cli_good[[1]], cli_bad[[1]]), ]
-  predict(model_cnn, convDf2Mx4d(df_test_explain))
+  pt1 <- predict(model_cnn, convDf2Mx4d(df_test_explain))
   
   # Run explain() on explainer
   nroFeat <- 10
@@ -152,7 +152,7 @@ plotarLime <- function (df_train, df_test, cli_good, cli_bad) {
     feature_select  = "forward_selection",
     labels = c("Bom"),
     n_features = nroFeat,
-    weight = .34,
+    weight = .54,
   )
 #  if (INVERTER_EXPLAIN_PROBS) {
 #    ajusteLabelProb(explain_feat, nroLabels, nroCasos, nroFeat)
@@ -286,7 +286,7 @@ plotarCorrCols <- function(conj) {
 }
 
 #Função que plotar imagens de resultados para diversas métricas
-plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot_lime=FALSE, plot_corr_periodo=FALSE, plot_corr_carac=FALSE, plot_corr_cols=FALSE, display_clientes=FALSE) {
+plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot_lime=TRUE, plot_corr_periodo=FALSE, plot_corr_carac=FALSE, plot_corr_cols=FALSE, display_clientes=FALSE) {
 
   cat("Cliente IDX: ", cliIni, "\n")  
   ############################################
@@ -350,7 +350,8 @@ plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot
   dev.off()
 
   if (plot_rocr) {
-    roc.info1 <- pROC::roc(as.vector(ds.test_pclass), 
+    vpclass <- matrix(ds.test_pclass)[, 1]
+    roc.info1 <- pROC::roc(vpclass, 
                           as.vector(ds.test_y), 
                           plot=TRUE, 
                           legacy.axes=TRUE, 
@@ -360,10 +361,10 @@ plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot
                           col="#0000FF", 
                           lwd=4,
                           print.auc=TRUE,
-                          auc=auc(roc(ds.test_pclass, ds.test_y))
+                          auc=auc(roc(vpclass, ds.test_y))
     )
     
-    roc.info <- pROC::roc(as.vector(ds.test_lab), 
+    roc.info <- pROC::roc(as.vector(ds.test_y), 
                           as.vector(ds.test_proba), 
                           plot=TRUE, 
                           legacy.axes=TRUE, 
@@ -392,7 +393,7 @@ plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot
          xlab = "Indíces",
          ylab = "Probabilidades",
          add=FALSE,
-         col=c("red", "blue")[as.factor(ds.train_lab)], mar=c(0,0,20,0)))
+         col=c("red", "blue")[as.factor(ds.train_y)], mar=c(0,0,20,0)))
     h1 <- 1 - ds.train_eval[[1]]
     h2 <- 1 - ds.train_rmse
     print(abline(h=h1, col="orange"))
@@ -406,7 +407,7 @@ plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot
          xlab = "Indíces",
          ylab = "Probabilidades",
          add=FALSE,
-         col=c("red", "blue")[as.factor(ds.test_lab)]))
+         col=c("red", "blue")[as.factor(ds.test_y)]))
     h2 <- 1 - ds.test_eval[[1]]
     h1 <- 1 - ds.test_rmse
     print(abline(h=h1, col="orange"))
@@ -414,7 +415,7 @@ plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot
     legend("center", legend=c("Bons", "Ruins", "corte RMSE", "corte Erro"), col=c("blue", "red", "orange", "cyan"), lwd=3, border=FALSE)
     
     smoothScatter(pch=15, ds.test_proba[, 1], 
-                  col=c("red", "blue")[as.factor(ds.test_lab)], 
+                  col=c("red", "blue")[as.factor(ds.test_y)], 
                   nrpoints=40,
                   main="Conjunto de Teste",
                   xlab = "Indíces",
@@ -440,10 +441,11 @@ plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot
   #
   #
   if (plot_info) {
-    infov.pks <- InformationValue::ks_plot(ds.test_y, ds.test_pclass)
-    infov.proc1 <- InformationValue::plotROC(ds.test_y, ds.test_pclass)
+    vpclass <- matrix(ds.test_pclass)[, 1]
+    infov.pks <- InformationValue::ks_plot(ds.test_y, vpclass)
+    infov.proc1 <- InformationValue::plotROC(ds.test_y, vpclass)
     infov.proc2 <- InformationValue::plotROC(ds.test_y, ds.test_proba[, 1], returnSensitivityMat = TRUE, Show.labels = TRUE)
-    infov.proc3 <- InformationValue::plotROC(ds.test_y, ds.test_pclass)
+    infov.proc3 <- InformationValue::plotROC(ds.test_y, vpclass)
   }
 
   ########
@@ -469,9 +471,10 @@ plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot
   if (display_clientes) {
     n <- cli_good[[1]]
     #Dados do cliente como uma imagem
-    EBImage::display(ds.test[n, 1:12, 1:20, 1], method = "raster")
+    arrImg <- ds.test[n, 1:12, 1:20, 1] / LIMITE_NORM
+    EBImage::display(arrImg, method = "raster")
     text(x = -1, y = 12, label = ds.test_nomes[n], adj = c(0,1), srt=90, col = "orange", cex = 2)
-    img <- EBImage::Image(ds.test[n, 1:12, 1:20, 1])
+    img <- EBImage::Image(arrImg)
     hist(img, main=paste0("Histograma para ", ds.test_nomes[n]))
     # Mapa de correlação
     corrplot::corrplot(ds.test[n, 1:12, 1:20, 1], is.corr = FALSE, method="circle", main=paste0(ds.test_nomes[n], " - Correlação entre características e pesos"), mar=c(0,0,2,0))
@@ -482,14 +485,16 @@ plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot
     
     n <- cli_good[[2]]
     #Dados do cliente como uma imagem
-    EBImage::display(ds.test[n, 1:12, 1:20, 1], method = "raster")
+    arrImg <- ds.test[n, 1:12, 1:20, 1] / LIMITE_NORM
+    EBImage::display(arrImg, method = "browser", drawGrid = TRUE)
     text(x = -1, y = 12, label = ds.test_nomes[n], adj = c(0,1), srt=90, col = "orange", cex = 2)
     
     n <- cli_bad[[1]]
     #Dados do cliente como uma imagem
-    EBImage::display(ds.test[n, 1:12, 1:20, 1], method = "raster")
+    arrImg <- ds.test[n, 1:12, 1:20, 1] / LIMITE_NORM
+    EBImage::display(arrImg, method = "raster")
     text(x = -1, y = 12, label = ds.test_nomes[n], adj = c(0,1), srt=90, col = "orange", cex = 2)
-    img <- EBImage::Image(ds.test[n, 1:12, 1:20, 1])
+    img <- EBImage::Image(arrImg)
     hist(img, main=paste0("Histograma para ", ds.test_nomes[n]))
     
     # Mapa de correlação
@@ -501,7 +506,8 @@ plotarResultados <- function (cliIni=185, plot_rocr=FALSE, plot_info=FALSE, plot
     
     n <- cli_bad[[2]]
     #Dados do cliente como uma imagem
-    EBImage::display(ds.test[n, 1:12, 1:20, 1], method = "raster")
+    arrImg <- ds.test[n, 1:12, 1:20, 1] / LIMITE_NORM
+    EBImage::display(arrImg, method = "raster")
     text(x = -1, y = 12, label = ds.test_nomes[n], adj = c(0,1), srt=90, col = "orange", cex = 2)
   }
   
